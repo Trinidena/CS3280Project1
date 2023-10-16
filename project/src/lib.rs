@@ -1,17 +1,77 @@
-// A.	The process_input_file function
-// a.	Accept the list folders as parameters.
-// b.	Loop through the folder list and do the following -
-// i.	Open the input file in each folder
-// ii.	Read each line and extract the quantity sold and add it to a sum variable using an inner loop or some other better way if available..
-// iii.	Call the output function and pass it a string that will have  the branch code,  product code and the total sale separated by comma.
-// Example: “ALBNM, PROD001, 32”
-// iv.	Close the input file.
-// c.	Once the outer loop is done return either of the following string message to the calling function (main) depending on the status of the file processing - “OK”,  “ERROR”
+use std::fs;
+use std::io::{BufRead, BufReader, Write};
 
-// B.	The write_to_summary_file function
-// a.	Accept a string that will have  the branch code,  product code and the total sale separated by comma.
-// b.	Open the output file
-// c.	Write the string received to the output file
-// d.	Close the file.
+struct LineData {
+    branch_code: String,
+    product_code: String,
+    quantity_sold: u32,
+}
 
-fn process_input_file() {}
+pub fn process_input_file(folders: Vec<String>) -> String {
+    let mut result = String::new();
+    let mut errors = Vec::new();
+
+    for folder in folders {
+        let input_file_path = format!("{}/branch_weekly_sales.txt", folder);
+
+        if let Ok(file) = fs::File::open(&input_file_path) {
+            let reader = BufReader::new(file);
+            let mut total_quantity = 0;
+
+            for (line_number, line) in reader.lines().enumerate() {
+                let line = line.unwrap_or_else(|_| "".to_string());
+                let parts: Vec<&str> = line.trim().split(',').collect();
+
+                if parts.len() == 4 {
+                    let quantity_sold: u32 = parts[2].trim().parse().unwrap_or(0);
+                    total_quantity += quantity_sold;
+                } else {
+                    return "ERROR".to_string();
+                }
+            }
+
+            let line_data = LineData {
+                branch_code: folder.clone(),
+                product_code: "PROD001".to_string(),
+                quantity_sold: total_quantity,
+            };
+
+            let output_string = format!(
+                "{}, {}, {}",
+                line_data.branch_code, line_data.product_code, line_data.quantity_sold
+            );
+
+            if write_to_summary_file(&output_string) {
+                result.push_str("OK\n");
+            } else {
+                errors.push(format!(
+                    "Error writing to summary file for folder: {}",
+                    folder
+                ));
+            }
+        } else {
+            errors.push(format!("Error opening input file for folder: {}", folder));
+        }
+    }
+    result
+}
+
+fn write_to_summary_file(output_string: &str) -> bool {
+    let summary_file_path = "summary.txt";
+
+    if let Ok(mut file) = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(summary_file_path)
+    {
+        if writeln!(file, "{}", output_string).is_ok() {
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
+//         /Users/trinidaddena/Downloads/data
